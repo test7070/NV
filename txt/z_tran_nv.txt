@@ -89,21 +89,19 @@ declare @tmp table(
 )
 insert @tmp
 select '9',left(datea,6),custno,nick,straddrno,straddr,product,unit
+,case when isnull(unit,'')='噸' then custprice else 0 end
+,case when isnull(unit,'')='米' then custprice else 0 end
 ,case when isnull(unit,'')='噸' then price2 else 0 end
 ,case when isnull(unit,'')='米' then price2 else 0 end
-,case when isnull(unit,'')='噸' then price2 else 0 end
-,case when isnull(unit,'')='米' then price2 else 0 end
-,case when isnull(unit,'')='噸' then (gross-weight3)*price else 0 end
-,case when isnull(unit,'')='趟' then mount else 0 end
-,case when product not like '%砂石%' then (gross-weight3)*price end
-,(gross-weight3)*price*0.9*0.2,(gross-weight3)*price*0.82
-,(gross-weight3)*price*0.91,(gross-weight3)*price*0.85,(gross-weight3)*price*0.9,(gross-weight3)*price
-,(gross-weight3)*price*0.25
-,miles,total/nullif(miles,0),a.memo,(gross-weight3)*a.custprice
+,case when isnull(unit,'')='噸' then price else 0 end
+,case when isnull(unit,'')='趟' then price else 0 end
+,price3,price3*0.9*0.2,price3*0.82,price3*0.91,price3*0.85,price3*0.9,price3,price3*0.25
+,miles,price3/nullif(miles,0),a.memo,commission2
 ,case when isnull(unit,'')='噸' and product like '%砂石%' then (gross-weight3)*price2 else 0 end
 ,case when isnull(unit,'')='米' and product like '%砂石%' then (gross-weight3)*price2 else 0 end
 ,case when product like '%砂石%' then (gross-weight3)*(custprice-price2) end
-,overh,round(total*0.05,0)
+,commission
+,custprice*0.05
 from view_trans a 
 where (datea between @t_bdate and @t_edate)
 and (custno between @t_bcustno and @t_ecustno)
@@ -146,6 +144,7 @@ left(datea,3)+'年'+RIGHT(datea,2)+'月單價表' title
 ,dbo.getComma(total7,0)total7
 ,dbo.getComma(miles,0)miles
 ,dbo.getComma(miles2,0)miles2
+,dbo.getComma(tax,0)tax
 ,*
 from @tmp
 order by datea,strnick,gno
