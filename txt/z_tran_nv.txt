@@ -962,3 +962,114 @@ LEFT(mon,3)+'年'+RIGHT(mon,2)+'月份應收帳款總表' title
 ,* from @tmp
 order by cno,gno
 ;
+----------------------------------------------------------------------------------------------
+z_tran_nv14:--z_tran_nv14
+SET QUOTED_IDENTIFIER OFF
+declare @t_bdate nvarchar(20)
+declare @t_edate nvarchar(20)
+declare @t_bstore nvarchar(20)
+declare @t_estore nvarchar(20)
+declare @t_bproductno nvarchar(20)
+declare @t_eproductno nvarchar(20)
+set @t_bdate = case when '#non'=[2] then '' else [2] end
+set @t_edate = case when '#non'=[3] then char(255) else [3] end
+set @t_bstore = case when '#non'=[10] then '' else [10] end
+set @t_estore = case when '#non'=[11] then char(255) else [11] end
+set @t_bproductno = case when '#non'=[12] then '' else [12] end
+set @t_eproductno = case when '#non'=[13] then char(255) else [13] end
+
+IF OBJECT_ID('tempdb..#tmp')is not null
+BEGIN
+	drop table #tmp
+END
+
+create table #tmp(
+	gno nvarchar(1),
+	rr int,
+	datea nvarchar(10),
+	storeno nvarchar(50),
+	store nvarchar(50),
+	caseno nvarchar(50),
+	productno nvarchar(50),
+	product nvarchar(50),
+	mount1 float,
+	mount2 float,
+	total float,
+	ttotal float
+)
+
+--期初入庫
+insert #tmp
+select '9','0',left(@t_bdate,3)+'期初',isnull(addno3,''),isnull(add3,''),isnull(caseno,''),uccno,product,sum(weight),0,0,0
+from view_trans
+where datea<@t_bdate
+and(isnull(addno3,'') between @t_bstore and @t_estore)
+and(uccno between @t_bproductno and @t_eproductno)
+and(isnull(custno,'')='')
+group by datea,addno3,add3,caseno,uccno,product
+
+--期初出庫
+insert #tmp
+select '9','0',left(@t_bdate,3)+'期初',isnull(addno3,''),isnull(add3,''),isnull(caseno,''),uccno,product,0,sum(weight),0,0
+from view_trans
+where datea<@t_bdate
+and(isnull(addno3,'') between @t_bstore and @t_estore)
+and(uccno between @t_bproductno and @t_eproductno)
+and(isnull(custno,'')!='')
+group by addno3,add3,caseno,uccno,product
+
+
+--入庫
+insert #tmp
+select '9','1',datea,isnull(addno3,''),isnull(add3,''),isnull(caseno,''),uccno,product,sum(weight),0,0,0
+from view_trans
+where (datea between @t_bdate and @t_edate)
+and(isnull(addno3,'') between @t_bstore and @t_estore)
+and(uccno between @t_bproductno and @t_eproductno)
+and(isnull(custno,'')='')
+group by datea,addno3,add3,caseno,uccno,product
+
+--出庫
+insert #tmp
+select '9','1',datea,isnull(addno3,''),isnull(add3,''),isnull(caseno,''),uccno,product,0,sum(weight),0,0
+from view_trans
+where (datea between @t_bdate and @t_edate)
+and(isnull(addno3,'') between @t_bstore and @t_estore)
+and(uccno between @t_bproductno and @t_eproductno)
+and(isnull(custno,'')!='')
+group by datea,addno3,add3,caseno,uccno,product
+
+--出庫
+insert #tmp
+select '0',rr,datea,storeno,store,caseno,productno,product,case when  rr='0' then null else sum(mount1) end,case when  rr='0' then null else sum(mount2) end,sum(mount1)-sum(mount2),sum(mount1)-sum(mount2)
+from #tmp
+group by rr,datea,storeno,store,caseno,productno,product
+
+delete #tmp where gno='9'
+
+update a
+set rr=rx
+from(select ROW_NUMBER()over(partition by rr,storeno,caseno,productno order by datea)rx,rr from #tmp where rr='1')a
+where rr='1'
+
+update a 
+set total=(select SUM(total) from #tmp where storeno=a.storeno and caseno=a.caseno and productno=a.productno and rr<=a.rr) 
+from #tmp a
+
+insert #tmp(gno,rr,datea,storeno,caseno,productno,total)
+select '1',9997,char(255),storeno,caseno,productno,sum(ttotal)
+from #tmp
+group by storeno,caseno,productno
+
+insert #tmp(gno,rr,datea,storeno,caseno,productno,total)
+select '2',9998,char(255),storeno,caseno,char(255),sum(ttotal)
+from #tmp
+group by storeno,caseno
+
+select * from #tmp order by storeno,caseno,productno,rr,datea
+
+IF OBJECT_ID('tempdb..#tmp')is not null
+BEGIN
+	drop table #tmp
+END
+;
